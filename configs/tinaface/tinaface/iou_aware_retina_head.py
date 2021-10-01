@@ -2,7 +2,7 @@
 # https://github.com/open-mmlab/mmdetection
 ## TODO: delete statement above (other files)
 import torch.nn as nn
-from ..builder import HEADS
+from mmdet.models.builder import HEADS
 #from vedacore.misc import registry
 from vedacore.modules import (ConvModule, bias_init_with_prob, constant_init,
                               normal_init)

@@ -6,24 +6,24 @@ _base_ = [
 
 # dataset settings
 dataset_type = 'WIDERFaceDataset'
-data_root = '/raid/datazyp/DATASET/WIDER_voc_format/' #'data/WIDERFace/'
+data_root = '/raid/datazyp/DATASET/WIDER_voc2/' #'data/WIDERFace/'
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[1, 1, 1], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile', to_float32=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(type='RandomSquareCrop',
          crop_choice=[0.3, 0.45, 0.6, 0.8, 1.0]),
-    #dict(
-    #    type='PhotoMetricDistortion',
-    #    brightness_delta=32,
-    #    contrast_range=(0.5, 1.5),
-    #    saturation_range=(0.5, 1.5),
-    #    hue_delta=18),
+    dict(
+       type='PhotoMetricDistortionRe',
+       brightness_delta=32,
+       contrast_range=(0.5, 1.5),
+       saturation_range=(0.5, 1.5),
+       hue_delta=18),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Resize', img_scale=(640, 640), keep_ratio=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_bboxes_ignore']),
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -65,28 +65,28 @@ test_pipeline = [
 #         pipeline=test_pipeline))
 
 data = dict(
-    samples_per_gpu=16,
+    samples_per_gpu=32,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
-        ann_file=data_root + 'train.txt',
+        ann_file=data_root + 'WIDER_train/train.txt',
         img_prefix=data_root + 'WIDER_train/',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
-        ann_file=data_root + 'val.txt',
+        ann_file=data_root + 'WIDER_val/val.txt',
         img_prefix=data_root +  'WIDER_val/',
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'val.txt',
+        ann_file=data_root + 'WIDER_val/val.txt',
         img_prefix=data_root + 'WIDER_val/',
         pipeline=test_pipeline))
 
 # model settings
 model = dict(
     type='RetinaNet',
-    pretrained='work_dirs/retinanet_r50_fpn_widerface_640x640/epoch_24.pth', #'torchvision://resnet50',
+    pretrained='torchvision://resnet50',
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -140,9 +140,11 @@ model = dict(
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
+            gamma = 2.0,
+            alpha = 0.25,
             loss_weight=1.0),
+        # loss_cls=dict(
+        #     type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
         loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
         #loss_bbox=dict(
         #    type='DIoULoss',
@@ -158,13 +160,15 @@ model = dict(
             ignore_iof_thr=-1),
         # sampler=dict(
         #     type='OHEMSampler',
-        #     num=1000,
+        #     num=512,
         #     pos_fraction=0.25,
+        #     context = None,
         #     neg_pos_ub=-1,
         #     add_gt_as_proposals=True
         # ),
         allowed_border=-1,
         pos_weight=-1,
+        neg_pos_ratio=3,
         debug=False),
     test_cfg=dict(
         nms_pre=1000,
@@ -217,7 +221,8 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=1000,
     warmup_ratio=0.001,
-    step=[16, 20])
+    step=[16, 30, 40])
 # runtime settings
-runner = dict(type='EpochBasedRunner', max_epochs=500)
+runner = dict(type='EpochBasedRunner', max_epochs=70)
 log_config = dict(interval=1)
+#resume_from = '/raid/datazyp/Swin-Transformer-Object-Detection/work_dirs/retinanet_r50_fpn_widerface_640x640/latest.pth'

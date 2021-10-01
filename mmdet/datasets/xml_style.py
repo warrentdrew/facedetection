@@ -115,7 +115,7 @@ class XMLDataset(CustomDataset):
             ]
             ignore = False
             if self.min_size:
-                assert not self.test_mode
+                #assert not self.test_mode # TODO: check different from vedadet
                 w = bbox[2] - bbox[0]
                 h = bbox[3] - bbox[1]
                 if w < self.min_size or h < self.min_size:
@@ -130,13 +130,13 @@ class XMLDataset(CustomDataset):
             bboxes = np.zeros((0, 4))
             labels = np.zeros((0, ))
         else:
-            bboxes = np.array(bboxes, ndmin=2) - 1
+            bboxes = np.array(bboxes, ndmin=2) # - 1 # TODO: check different from vedadet
             labels = np.array(labels)
         if not bboxes_ignore:
             bboxes_ignore = np.zeros((0, 4))
             labels_ignore = np.zeros((0, ))
         else:
-            bboxes_ignore = np.array(bboxes_ignore, ndmin=2) - 1
+            bboxes_ignore = np.array(bboxes_ignore, ndmin=2) # - 1 # TODO: check different from vedadet
             labels_ignore = np.array(labels_ignore)
         ann = dict(
             bboxes=bboxes.astype(np.float32),

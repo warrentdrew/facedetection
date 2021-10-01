@@ -4,8 +4,9 @@
 from ..builder import PIPELINES
 import cv2
 import numpy as np
-import random
+from numpy import random
 from .box_utils import matrix_iof
+import mmcv
 
 @PIPELINES.register_module()
 class ShortSideResize(object):
@@ -405,4 +406,124 @@ class RandomSquareCrop(object):
         repr_str = self.__class__.__name__
         repr_str += f'(min_ious={self.min_iou}, '
         repr_str += f'crop_size={self.crop_size})'
+        return repr_str
+
+
+@PIPELINES.register_module()
+class PhotoMetricDistortionRe(object):
+    """Apply photometric distortion to image sequentially, every transformation
+    is applied with a probability of 0.5. The position of random contrast is in
+    second or second to last.
+
+    1. random brightness
+    2. random contrast (mode 0)
+    3. convert color from BGR to HSV
+    4. random saturation
+    5. random hue
+    6. convert color from HSV to BGR
+    7. random contrast (mode 1)
+    8. randomly swap channels
+
+    Args:
+        brightness_delta (int): delta of brightness.
+        contrast_range (tuple): range of contrast.
+        saturation_range (tuple): range of saturation.
+        hue_delta (int): delta of hue.
+    """
+
+    def __init__(self,
+                 brightness_delta=32,
+                 contrast_range=(0.5, 1.5),
+                 saturation_range=(0.5, 1.5),
+                 hue_delta=18,
+                 p=0.5):
+        self.brightness_delta = brightness_delta
+        self.contrast_lower, self.contrast_upper = contrast_range
+        self.saturation_lower, self.saturation_upper = saturation_range
+        self.hue_delta = hue_delta
+        self.p = p
+
+    def __call__(self, results):
+        """Call function to perform photometric distortion on images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Result dict with images distorted.
+        """
+
+        if 'img_fields' in results:
+            assert results['img_fields'] == ['img'], \
+                'Only single img_fields is allowed'
+        img = results['img']
+        assert img.dtype == np.float32, \
+            'PhotoMetricDistortion needs the input image of dtype np.float32,'\
+            ' please set "to_float32=True" in "LoadImageFromFile" pipeline'
+
+        def _filter(img):
+            img[img < 0] = 0
+            img[img > 255] = 255
+            return img
+
+        if random.uniform(0, 1) <= self.p:
+
+            # random brightness
+            if random.randint(2):
+                delta = random.uniform(-self.brightness_delta,
+                                       self.brightness_delta)
+                img += delta
+                img = _filter(img)
+
+            # mode == 0 --> do random contrast first
+            # mode == 1 --> do random contrast last
+            mode = random.randint(2)
+            if mode == 1:
+                if random.randint(2):
+                    alpha = random.uniform(self.contrast_lower,
+                                           self.contrast_upper)
+                    img *= alpha
+                    img = _filter(img)
+
+            # convert color from BGR to HSV
+            img = mmcv.bgr2hsv(img)
+
+            # random saturation
+            if random.randint(2):
+                img[..., 1] *= random.uniform(self.saturation_lower,
+                                              self.saturation_upper)
+
+            # random hue
+            if random.randint(2):
+                img[..., 0] += random.uniform(-self.hue_delta, self.hue_delta)
+                img[..., 0][img[..., 0] > 360] -= 360
+                img[..., 0][img[..., 0] < 0] += 360
+
+            # convert color from HSV to BGR
+            img = mmcv.hsv2bgr(img)
+            img = _filter(img)
+
+            # random contrast
+            if mode == 0:
+                if random.randint(2):
+                    alpha = random.uniform(self.contrast_lower,
+                                           self.contrast_upper)
+                    img *= alpha
+                    img = _filter(img)
+
+            # randomly swap channels
+            if random.randint(2):
+                img = img[..., random.permutation(3)]
+
+            results['img'] = img
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(\nbrightness_delta={self.brightness_delta},\n'
+        repr_str += 'contrast_range='
+        repr_str += f'{(self.contrast_lower, self.contrast_upper)},\n'
+        repr_str += 'saturation_range='
+        repr_str += f'{(self.saturation_lower, self.saturation_upper)},\n'
+        repr_str += f'hue_delta={self.hue_delta})'
         return repr_str

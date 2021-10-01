@@ -59,6 +59,8 @@ def parse_xml(xml_path, keep_index, gt_boxes):
 
         bbox[2:] -= bbox[:2]
 
+        # print("bbox", bbox)
+        # print("gt_box", gt_box)
         assert np.sum(bbox == gt_box) == 4 
 
         if i + 1 in keep_index and (bbox[2] > 0 and bbox[3] > 0):
